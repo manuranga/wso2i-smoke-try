@@ -86,7 +86,7 @@ jobs:
       #     echo "WSO2_INTEGRATOR_PATH=$(realpath VSCode-linux-x64/bin/wso2-integrator)" >> "$GITHUB_ENV"
 
       - name: Install wso2ipw
-        run: npm install -g wso2ipw@0.1.3
+        run: npm install -g wso2ipw@0.1.4
 
       - name: Run smoke test
         run: |
@@ -110,5 +110,4 @@ jobs:
           name: smoke-test-screenshot
           path: |
             failure-*.png
-            /tmp/debug-*.png
           if-no-files-found: ignore
