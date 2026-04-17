@@ -60,20 +60,18 @@ jobs:
           echo "Downloading: $URL"
           curl -fSL -o "$TARBALL" "$URL"
           tar -xzf "$TARBALL"
-          # Find the extracted integrator binary
-          INTEGRATOR_BIN=$(find . -type f -name 'wso2-integrator' -path '*/bin/*' | head -1)
-          if [ -z "$INTEGRATOR_BIN" ]; then
-            # Fallback: look for the executable in a known path
-            INTEGRATOR_BIN=$(find . -type f -name 'wso2-integrator' ! -path '*/node_modules/*' | head -1)
-          fi
-          if [ -z "$INTEGRATOR_BIN" ]; then
+          # The tar.gz contains: wso2-integrator/wso2-integrator (ELF binary)
+          #                       wso2-integrator/bin/wso2-integrator (shell wrapper)
+          # Playwright needs the actual Electron binary, not the wrapper.
+          INTEGRATOR_BIN="./wso2-integrator/wso2-integrator"
+          if [ ! -f "$INTEGRATOR_BIN" ]; then
             echo "Could not find wso2-integrator binary. Contents:"
-            find . -maxdepth 3 -type f | head -40
+            find . -maxdepth 3 -type f -name 'wso2*' | head -20
             exit 1
           fi
           chmod +x "$INTEGRATOR_BIN"
           echo "WSO2_INTEGRATOR_PATH=$(realpath $INTEGRATOR_BIN)" >> "$GITHUB_ENV"
-          echo "Found integrator at: $INTEGRATOR_BIN"
+          echo "Found integrator at: $(file $INTEGRATOR_BIN)"
 
       # In product-integrator repo, replace the download step above with:
       # - name: Download build artifact
@@ -86,18 +84,6 @@ jobs:
       #     tar -xzf artifacts/vscode-linux-x64.tar.gz
       #     chmod +x VSCode-linux-x64/bin/wso2-integrator
       #     echo "WSO2_INTEGRATOR_PATH=$(realpath VSCode-linux-x64/bin/wso2-integrator)" >> "$GITHUB_ENV"
-
-      - name: Debug - inspect extracted pack
-        run: |
-          echo "=== Directory structure ==="
-          find . -maxdepth 4 -type f -name 'wso2*' | head -20
-          echo "=== Binary info ==="
-          file "$WSO2_INTEGRATOR_PATH"
-          head -5 "$WSO2_INTEGRATOR_PATH" 2>/dev/null || true
-          echo "=== Listing bin dir ==="
-          ls -la "$(dirname $WSO2_INTEGRATOR_PATH)/"
-          echo "=== Full tree (first 50) ==="
-          find . -path ./node_modules -prune -o -print | head -50
 
       - name: Install wso2ipw
         run: npm install -g wso2ipw@0.1.3
