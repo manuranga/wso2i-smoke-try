@@ -87,8 +87,20 @@ jobs:
       #     chmod +x VSCode-linux-x64/bin/wso2-integrator
       #     echo "WSO2_INTEGRATOR_PATH=$(realpath VSCode-linux-x64/bin/wso2-integrator)" >> "$GITHUB_ENV"
 
+      - name: Debug - inspect extracted pack
+        run: |
+          echo "=== Directory structure ==="
+          find . -maxdepth 4 -type f -name 'wso2*' | head -20
+          echo "=== Binary info ==="
+          file "$WSO2_INTEGRATOR_PATH"
+          head -5 "$WSO2_INTEGRATOR_PATH" 2>/dev/null || true
+          echo "=== Listing bin dir ==="
+          ls -la "$(dirname $WSO2_INTEGRATOR_PATH)/"
+          echo "=== Full tree (first 50) ==="
+          find . -path ./node_modules -prune -o -print | head -50
+
       - name: Install wso2ipw
-        run: npm install -g wso2ipw
+        run: npm install -g wso2ipw@0.1.3
 
       - name: Run smoke test
         run: |
