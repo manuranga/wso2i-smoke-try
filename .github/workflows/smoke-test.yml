@@ -99,8 +99,8 @@ jobs:
         with:
           name: smoke-test-logs
           path: |
-            ~/.wso2ipw/*/daemon.log
-            ~/.wso2ipw/*/daemon.err
+            /home/runner/.wso2ipw/*/daemon.log
+            /home/runner/.wso2ipw/*/daemon.err
           if-no-files-found: ignore
 
       - name: Upload screenshot on failure
@@ -110,4 +110,5 @@ jobs:
           name: smoke-test-screenshot
           path: |
             failure-*.png
+            /tmp/debug-*.png
           if-no-files-found: ignore

@@ -31,6 +31,8 @@ fi
 
 snap=$(pw wait-for-text "Create" --timeout=15000)
 echo "  App ready"
+echo "SNAP>>>$snap<<<SNAP"
+pw screenshot /tmp/debug-landing.png 2>/dev/null || true
 
 # ── 2. Create Integration ────────────────────────────────────────────────────
 
