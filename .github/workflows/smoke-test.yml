@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 15
     env:
       DISPLAY: ':99'
+      WSO2IPW_ELECTRON_ARGS: '--no-sandbox'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
