@@ -1,0 +1,132 @@
+#!/bin/bash
+#
+# Smoke test: Create an HTTP hello world service and verify it responds.
+# Adapted from wso2ipw examples/hello-service.sh for CI.
+#
+set -euo pipefail
+
+pw() { wso2ipw "$@"; }
+ref() { echo "$1" | grep -F "$2" | grep -oE '[gh]:s[0-9]+e[0-9]+' | head -1; }
+step() { echo ""; echo "═══ $1 ═══"; }
+fail() {
+  echo "FAIL: $1" >&2
+  pw screenshot failure-$(date +%s).png 2>/dev/null || true
+  pw close 2>/dev/null
+  exit 1
+}
+
+PROJ_ID="smoke$(date +%s)"
+
+# ── 1. Open ──────────────────────────────────────────────────────────────────
+
+step "1. Launch app"
+pw open
+
+snap=$(pw wait-for-text "Skip for now" --timeout=15000 2>/dev/null || true)
+r=$(ref "$snap" 'Skip for now') || true
+if [ -n "$r" ]; then
+  pw click "$r" > /dev/null
+  echo "  Skipped sign-in"
+fi
+
+snap=$(pw wait-for-text "Create" --timeout=15000)
+echo "  App ready"
+
+# ── 2. Create Integration ────────────────────────────────────────────────────
+
+step "2. Create integration (project: $PROJ_ID)"
+
+snap=$(pw click "$(ref "$snap" 'button "Create"')")
+
+snap=$(pw fill "$(ref "$snap" 'textbox "Integration Name')" HelloWorld)
+snap=$(pw fill "$(ref "$snap" 'textbox "Project Name')" "Hello Project")
+pw fill "$(ref "$snap" 'textbox "Project ID"')" "$PROJ_ID" > /dev/null
+
+snap=$(pw snapshot)
+snap=$(pw click "$(ref "$snap" 'button "Create Integration"')")
+echo "$snap" | grep -q "Integrations & Libraries" || fail "Project overview not reached"
+echo "✓ Project created"
+
+# ── 3. Add HTTP Service with GET /greeting ───────────────────────────────────
+
+step "3. Add HTTP Service with GET /greeting"
+
+snap=$(pw click "$(ref "$snap" 'HelloWorld')")
+snap=$(pw wait-for-text "Add Artifact" --timeout=10000)
+snap=$(pw click "$(ref "$snap" 'Add Artifact')")
+snap=$(pw wait-for-text "HTTP Service" --timeout=10000)
+snap=$(pw click "$(ref "$snap" 'HTTP Service')")
+snap=$(pw wait-for-text "Base Path" --timeout=15000)
+snap=$(pw click "$(ref "$snap" 'button "Create"')")
+
+snap=$(pw wait-for-text "Add Resource" --timeout=15000)
+pw click "$(ref "$snap" 'Add Resource')" > /dev/null
+
+snap=$(pw wait-for-text "GET" --timeout=10000)
+pw click "$(ref "$snap" 'button "GET"')" > /dev/null
+
+snap=$(pw wait-for-text "Resource Path" --timeout=10000)
+r=$(ref "$snap" 'textbox "Resource Path')
+[ -z "$r" ] && fail "Resource Path field not found"
+pw fill "$r" greeting > /dev/null
+
+snap=$(pw snapshot)
+snap=$(pw click "$(ref "$snap" 'button "Save"')")
+echo "$snap" | grep -q "greeting" || fail "GET /greeting not created"
+echo "✓ GET /greeting resource created"
+
+# ── 4. Add Return "Hello, World!" ────────────────────────────────────────────
+
+step "4. Add Return node"
+
+snap=$(pw wait-for-text "Error Handler" --timeout=15000)
+pw click "$(ref "$snap" 'button "empty-node-add-button-1"')" > /dev/null
+snap=$(pw wait-for-text "Declare Variable" --timeout=10000)
+
+pw click "$(ref "$snap" 'button "Return"')" > /dev/null
+snap=$(pw wait-for-text "Expression" --timeout=10000)
+
+r=$(ref "$snap" 'textbox')
+[ -z "$r" ] && fail "Expression field not found"
+pw fill "$r" '"Hello, World!"' > /dev/null
+
+snap=$(pw snapshot)
+r=$(ref "$snap" 'button "Save"')
+[ -z "$r" ] && fail "Save button not found"
+snap=$(pw click "$r")
+pw wait-for-text 'Return' --timeout=10000 > /dev/null
+echo "✓ Return \"Hello, World!\" saved"
+
+# Verify generated code
+BAL_FILE="$HOME/wso2integrator/projects/$PROJ_ID/helloworld/main.bal"
+grep -q 'return "Hello, World!"' "$BAL_FILE" || fail "Expression not found in $BAL_FILE"
+echo "✓ Verified in generated code"
+
+# ── 5. Run and verify ────────────────────────────────────────────────────────
+
+step "5. Run integration"
+snap=$(pw snapshot)
+pw click "$(ref "$snap" 'button "Run Integration"')" > /dev/null
+
+echo "  Waiting for Ballerina to compile and start..."
+for i in $(seq 1 24); do
+  sleep 5
+  body=$(curl -s http://localhost:9090/greeting 2>/dev/null) || true
+  if [ "$body" = "Hello, World!" ]; then
+    echo "✓ GET /greeting → \"Hello, World!\""
+    break
+  fi
+  [ "$i" -eq 24 ] && fail "GET /greeting did not return expected body within 120s"
+done
+
+echo ""
+echo "════════════════════════════════════════════"
+echo "  SMOKE TEST PASSED ✓"
+echo "  Project: $PROJ_ID"
+echo "════════════════════════════════════════════"
+
+# Cleanup
+snap=$(pw snapshot 2>/dev/null || true)
+r=$(ref "$snap" 'button "Stop') || true
+[ -n "$r" ] && pw click "$r" > /dev/null 2>&1 || true
+pw close 2>/dev/null || true

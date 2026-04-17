@@ -1,0 +1,114 @@
+name: Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      integrator_version:
+        description: 'WSO2 Integrator version (e.g. 5.0.0-alpha6)'
+        required: true
+        default: '5.0.0-alpha6'
+        type: string
+  # In product-integrator, this will be workflow_call triggered after build
+  # workflow_call:
+  #   inputs:
+  #     integrator_version:
+  #       required: true
+  #       type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Smoke Test (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DISPLAY: ':99'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            libgtk-3-0 libgbm1 libnss3 libxss1 libasound2 \
+            libx11-xcb1 libdrm2 libxcomposite1 libxdamage1 \
+            libxrandr2 libatk-bridge2.0-0 libatspi2.0-0 libcups2 \
+            curl
+
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          sleep 2
+
+      - name: Download WSO2 Integrator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ inputs.integrator_version }}"
+          TARBALL="wso2-integrator-${VERSION}-linux-x64.tar.gz"
+          URL="https://github.com/wso2/product-integrator/releases/download/v${VERSION}/${TARBALL}"
+          echo "Downloading: $URL"
+          curl -fSL -o "$TARBALL" "$URL"
+          tar -xzf "$TARBALL"
+          # Find the extracted integrator binary
+          INTEGRATOR_BIN=$(find . -type f -name 'wso2-integrator' -path '*/bin/*' | head -1)
+          if [ -z "$INTEGRATOR_BIN" ]; then
+            # Fallback: look for the executable in a known path
+            INTEGRATOR_BIN=$(find . -type f -name 'wso2-integrator' ! -path '*/node_modules/*' | head -1)
+          fi
+          if [ -z "$INTEGRATOR_BIN" ]; then
+            echo "Could not find wso2-integrator binary. Contents:"
+            find . -maxdepth 3 -type f | head -40
+            exit 1
+          fi
+          chmod +x "$INTEGRATOR_BIN"
+          echo "WSO2_INTEGRATOR_PATH=$(realpath $INTEGRATOR_BIN)" >> "$GITHUB_ENV"
+          echo "Found integrator at: $INTEGRATOR_BIN"
+
+      # In product-integrator repo, replace the download step above with:
+      # - name: Download build artifact
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: artifacts-linux
+      #     path: artifacts/
+      # - name: Extract artifact
+      #   run: |
+      #     tar -xzf artifacts/vscode-linux-x64.tar.gz
+      #     chmod +x VSCode-linux-x64/bin/wso2-integrator
+      #     echo "WSO2_INTEGRATOR_PATH=$(realpath VSCode-linux-x64/bin/wso2-integrator)" >> "$GITHUB_ENV"
+
+      - name: Install wso2ipw
+        run: npm install -g wso2ipw
+
+      - name: Run smoke test
+        run: |
+          chmod +x tests/hello-service.sh
+          tests/hello-service.sh
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            ~/.wso2ipw/*/daemon.log
+            ~/.wso2ipw/*/daemon.err
+          if-no-files-found: ignore
+
+      - name: Upload screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-screenshot
+          path: |
+            failure-*.png
+          if-no-files-found: ignore
