@@ -108,11 +108,11 @@ jobs:
       - name: Install wso2ipw
         run: npm install -g wso2ipw@0.1.5
 
-      - name: Install Chrome for playwright-cli
+      - name: Install playwright-cli and Chrome
         if: matrix.example == 'icp'
         run: |
-          cd $(npm root -g)/wso2ipw/node_modules/@playwright/cli/node_modules/playwright-core
-          npx playwright install --with-deps chrome
+          npm install -g @playwright/cli
+          cd $(npm root -g)/@playwright/cli/node_modules/playwright-core && npx playwright install --with-deps chrome
 
       - name: Create playwright-cli config
         if: matrix.example == 'icp'
@@ -206,12 +206,12 @@ jobs:
       - name: Install wso2ipw
         run: npm install -g wso2ipw@0.1.5
 
-      - name: Install Chrome for playwright-cli
+      - name: Install playwright-cli and Chrome
         if: matrix.example == 'icp'
         shell: bash
         run: |
-          cd $(npm root -g)/wso2ipw/node_modules/@playwright/cli/node_modules/playwright-core
-          npx playwright install --with-deps chrome
+          npm install -g @playwright/cli
+          cd $(npm root -g)/@playwright/cli/node_modules/playwright-core && npx playwright install --with-deps chrome
 
       - name: Create playwright-cli config
         if: matrix.example == 'icp'
